@@ -15,22 +15,22 @@ from torchvision import transforms
 from tqdm import tqdm
 
 from data import load_image_data
-from model import VisionTransformerResNet  # make sure this is the VisionTransformerResNet class from model.py
+from model import VisionTransformerResNet  # Ensure this is the VisionTransformerResNet class from model.py
 from utils import set_seed
 
 import wandb
 
-# configure logger
+# Configure logger
 logging.basicConfig(filename='training.log', level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger()
 
-# vision transformer training function
+# Vision transformer training function
 def train_vision_transformer(
     model,
     dataloader,
     optimizer,
     loss_function,
-    num_epochs=50,
+    total_epochs=50,
     device="cpu",
     data_percent=1.0,
     steps_per_epoch=None,
@@ -44,53 +44,75 @@ def train_vision_transformer(
     model.to(device)
     model.train()
     print(f"{model.__class__.__name__} Running on: {device}")
-    print(f"Number of epochs: {num_epochs}")
-    
-    for epoch in range(start_epoch, num_epochs):
-        total_loss = 0.0
-        total_correct_predictions = 0
-        total_samples = 0
+    print(f"Total number of epochs to train: {total_epochs}")
 
-        epoch_progress = tqdm(
-            dataloader, desc=f"Epoch [{epoch + 1:2}/{num_epochs:2}]"
-        )
+    try:
+        for epoch in range(start_epoch, total_epochs):
+            total_loss = 0.0
+            total_correct_predictions = 0
+            total_samples = 0
 
-        for batch in epoch_progress:
-            images, labels = batch
-            images, labels = images.to(device), labels.to(device)
+            epoch_progress = tqdm(
+                dataloader, desc=f"Epoch [{epoch + 1}/{total_epochs}]"
+            )
 
-            optimizer.zero_grad()
-            outputs, _ = model(images)  # forward pass
-            outputs = outputs.mean(dim=1)
-            outputs = torch.sigmoid(outputs)
-            predictions = torch.round(outputs)
+            for batch in epoch_progress:
+                images, labels = batch
+                images, labels = images.to(device), labels.to(device)
+
+                optimizer.zero_grad()
+                outputs, _ = model(images)  # Forward pass
+                outputs = outputs.mean(dim=1)
+                outputs = torch.sigmoid(outputs)
+                predictions = torch.round(outputs)
+                
+                loss = loss_function(outputs, labels.float())
+                loss.backward()
+                optimizer.step()
+
+                total_loss += loss.item()
+                total_correct_predictions += (predictions == labels).sum().item()
+                total_samples += labels.size(0)
+
+                epoch_progress.set_postfix({
+                    "Loss": f"{loss.item():.4f}",
+                    "Accuracy": f"{(total_correct_predictions / total_samples) * 100:.2f}%"
+                })
+
+            average_loss = total_loss / len(dataloader)
+            average_accuracy = (total_correct_predictions / total_samples) * 100
+            print(f"\nEpoch [{epoch + 1}/{total_epochs}] - Loss: {average_loss:.4f} - Accuracy: {average_accuracy:.2f}%")
+            logger.info(f"Epoch [{epoch + 1}/{total_epochs}] - Loss: {average_loss:.4f} - Accuracy: {average_accuracy:.2f}%")
             
-            loss = loss_function(outputs, labels.float())
-            loss.backward()
-            optimizer.step()
-
-            total_loss += loss.item()
-            total_correct_predictions += (predictions == labels).sum().item()
-            total_samples += labels.size(0)
-
-            epoch_progress.set_postfix({
-                "Loss": f"{loss.item():.4f}",
-                "Accuracy": f"{(total_correct_predictions / total_samples) * 100:.2f}%"
+            wandb.log({
+                "loss": average_loss,
+                "accuracy": average_accuracy,
+                "epoch": epoch + 1  # Log the current epoch
             })
 
-        average_loss = total_loss / len(dataloader)
-        average_accuracy = (total_correct_predictions / total_samples) * 100
-        print(f"\nEpoch [{epoch + 1}/{num_epochs}] - Loss: {average_loss:.4f} - Accuracy: {average_accuracy:.2f}%")
-        logger.info(f"Epoch [{epoch + 1}/{num_epochs}] - Loss: {average_loss:.4f} - Accuracy: {average_accuracy:.2f}%")
-        
-        wandb.log({
-            "loss": average_loss,
-            "accuracy": average_accuracy,
-            "epoch": epoch + 1  # Log the current epoch
-        })
+            # Save checkpoint at the end of each epoch
+            if checkpoint_path:
+                checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'wandb_run_id': wandb.run.id  # Save the wandb run ID
+                }
+                torch.save(checkpoint, checkpoint_path)
+                print(f"Checkpoint saved at {checkpoint_path}")
 
-        # Save checkpoint every 'save_on_every_n_epochs' epochs
-        if (epoch + 1) % save_on_every_n_epochs == 0 and checkpoint_path:
+            # Save model and XGBoost model if paths are provided
+            if ((epoch + 1) % save_on_every_n_epochs == 0 or (epoch + 1) == total_epochs) and model_path:
+                torch.save(model.state_dict(), model_path)
+                # Log the model checkpoint to wandb
+                wandb.save(str(model_path))
+                if xgb_model_path and xgb_classifier:
+                    xgb_classifier.save_model(xgb_model_path)
+                    # Log the XGBoost model
+                    wandb.save(str(xgb_model_path))
+    except KeyboardInterrupt:
+        print("Training interrupted. Saving checkpoint...")
+        if checkpoint_path:
             checkpoint = {
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -99,29 +121,30 @@ def train_vision_transformer(
             }
             torch.save(checkpoint, checkpoint_path)
             print(f"Checkpoint saved at {checkpoint_path}")
+        raise
 
-        # Save model and xgb model if paths are provided
-        if (epoch + 1) % save_on_every_n_epochs == 0 and model_path:
-            torch.save(model.state_dict(), model_path)
-            # Log the model checkpoint to wandb
-            wandb.save(str(model_path))
-            if xgb_model_path and xgb_classifier:
-                xgb_classifier.save_model(xgb_model_path)
-                # Log the xgboost model
-                wandb.save(str(xgb_model_path))
+    # Save final checkpoint
+    if checkpoint_path:
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'wandb_run_id': wandb.run.id  # Save the wandb run ID
+        }
+        torch.save(checkpoint, checkpoint_path)
+        print(f"Final checkpoint saved at {checkpoint_path}")
 
-
-# feature extraction function
+# Feature extraction function
 def extract_features(model, dataloader, device="cpu"):
     model.to(device)
-    model.eval()  # eval mode for feature extraction
+    model.eval()  # Eval mode for feature extraction
     all_features = []
     all_labels = []
     
     with torch.no_grad():
         for images, labels in tqdm(dataloader, desc="Extracting features"):
             images = images.to(device)
-            features, _ = model(images)  # forward pass
+            features, _ = model(images)  # Forward pass
             all_features.append(features.cpu())
             all_labels.append(labels.cpu())
     
@@ -129,17 +152,14 @@ def extract_features(model, dataloader, device="cpu"):
     labels = torch.cat(all_labels).numpy()
     return features, labels
 
-
-# training function for XGBoost
+# Training function for XGBoost
 def train_xgboost(features, labels):
     xgb_classifier = xgb.XGBClassifier(use_label_encoder=False, eval_metric="logloss")
     xgb_classifier.fit(features, labels)
     return xgb_classifier
 
-
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
 
 def main():
     parser = argparse.ArgumentParser(description='Vision Transformer with XGBoost Training and Testing')
@@ -149,7 +169,7 @@ def main():
 
     args = parser.parse_args()
     
-    config = DotDict.from_toml('config.toml')  # load config    
+    config = DotDict.from_toml('config.toml')  # Load config    
     set_seed(config.seed)
     config.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
@@ -189,8 +209,14 @@ def main():
         transforms.ToTensor(), 
     ])
 
-    # load data
-    train_dataloader = load_image_data(args.image_directory, config.image_size, config.batch_size, use_sampler=True, transform=train_transform)
+    # Load data
+    train_dataloader = load_image_data(
+        args.image_directory,
+        config.image_size,
+        config.batch_size,
+        use_sampler=True,
+        transform=train_transform
+    )
     
     # Initialize model and move to device before creating optimizer
     model = VisionTransformerResNet(config)
@@ -199,7 +225,7 @@ def main():
     loss_function = nn.BCELoss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 
-    # initialize xgb classifier
+    # Initialize XGBoost classifier
     xgb_classifier = None
 
     # Load model and optimizer states if checkpoint exists
@@ -232,7 +258,7 @@ def main():
     elif model_path.exists():
         # For backward compatibility if the checkpoint doesn't exist but model weights do
         try:
-            # load state dict
+            # Load state dict
             state_dict = torch.load(model_path)
             model.load_state_dict(state_dict)
             if xgb_model_path.exists():
@@ -250,14 +276,15 @@ def main():
     # Watch the model with wandb
     wandb.watch(model, log='all')
     
-    # train ViT
-    print("training vision transformer...")
+    # Train ViT
+    print("Training vision transformer...")
+    total_epochs = config.num_epochs
     train_vision_transformer(
         model,
         train_dataloader,
         optimizer,
         loss_function,
-        num_epochs=config.num_epochs,
+        total_epochs=total_epochs,
         device=config.device,
         model_path=model_path,
         xgb_model_path=xgb_model_path,
@@ -266,35 +293,35 @@ def main():
         start_epoch=start_epoch
     )
     
-    # extract features from ViT
-    print("extracting features from vision transformer...")
+    # Extract features from ViT
+    print("Extracting features from vision transformer...")
     features, labels = extract_features(model, train_dataloader, device=config.device)
     
-    # train XGBoost classifier on extracted features
-    print("training XGBoost classifier...")
+    # Train XGBoost classifier on extracted features
+    print("Training XGBoost classifier...")
     xgb_classifier = train_xgboost(features, labels)
     xgb_classifier.save_model(str(xgb_model_path))
     print(f"XGBoost classifier saved at {xgb_model_path}")
 
-    # evaluate on the test dataset if provided
+    # Evaluate on the test dataset if provided
     if args.test:
-        logger.info(f'testing data: {args.test_directory}')
+        logger.info(f'Testing data: {args.test_directory}')
         test_dataloader = load_image_data(args.test_directory, config.image_size, config.batch_size)
 
-        # extract features from test set
-        print("extracting test features...")
+        # Extract features from test set
+        print("Extracting test features...")
         test_features, test_labels = extract_features(model, test_dataloader, device=config.device)
 
-        # predict using XGBoost classifier
+        # Predict using XGBoost classifier
         y_pred = xgb_classifier.predict(test_features)
 
-        # calculate evaluation metrics
+        # Calculate evaluation metrics
         accuracy = accuracy_score(test_labels, y_pred)
         precision = precision_score(test_labels, y_pred)
         recall = recall_score(test_labels, y_pred)
         f1 = f1_score(test_labels, y_pred)
 
-        # log and print metrics
+        # Log and print metrics
         logger.info(f'Accuracy: {accuracy}')
         logger.info(f'Precision: {precision}')
         logger.info(f'Recall: {recall}')
@@ -311,7 +338,6 @@ def main():
 
     # Finish the wandb run
     wandb.finish()
-
 
 if __name__ == "__main__":
     main()
