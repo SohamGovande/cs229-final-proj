@@ -1,105 +1,71 @@
-# Vision Transformer for Pneumonia Detection
+# ViTXGB: Vision Transformer with XGBoost
 
-## Introduction
+A PyTorch implementation of Vision Transformer (ViT) with XGBoost classifier for feature extraction and classification.
 
-This project implements a Vision Transformer (ViT) for the detection of pneumonia in chest X-ray images. The ViT model is a state-of-the-art deep learning architecture that has shown promising results in various computer vision tasks, including image classification.
+## Setup
 
-## Dataset
+1. Ensure you have Python 3.11 installed
+2. Clone the repository:
+```bash
+git clone https://github.com/SohamGovande/cs229-finalproj.git
+```
+3. Install the package in editable mode:
+```bash
+pip install -e .
+```
 
-The dataset used for this project consists of chest X-ray images containing both pneumonia and non-pneumonia cases. The dataset is divided into training, validation, and test sets, enabling the development and evaluation of the model's performance.
+## Training
 
-Dataset here [Chest X-Ray Images (Pneumonia)](https://www.kaggle.com/datasets/lasaljaywardena/pneumonia-chest-x-ray-dataset)
+Launch the training script using:
+```bash
+python3 -m vit.scripts.train [image_directory] [options]
+```
 
-## Model
+### Arguments
 
-The Vision Transformer (ViT) architecture is employed to classify chest X-ray images into pneumonia or non-pneumonia cases. The model is trained to extract meaningful features from the images and make predictions based on these features.
+- `image_directory`: Path to directory containing training images. Should be organized in subdirectories by class.
+- `--test`: (Optional) Flag to evaluate model on test set
+- `--test-directory`: Path to test images directory when using `--test` flag
 
-> NOTE: TRAIN MODEL WITH YOU OWN DATA.
-## Getting Started
+### Example Usage
 
-Follow the steps below to get started with this project:
+Train on training data:
+```bash
+python3 -m vit.scripts.train data/train
+```
 
-### Prerequisites
+Train and evaluate on test set:
+```bash
+python3 -m vit.scripts.train data/train --test --test-directory data/test
+```
 
-Before running the code, make sure you have the following prerequisites installed:
+## Features
 
-- Python 3.11
-- PyTorch
-- torchvision
-- NumPy
-- pandas
-- Streamlit (for running the web app)
+- Vision Transformer (ViT) model with ResNet backbone
+- XGBoost classifier on extracted features
+- Weights & Biases integration for experiment tracking
+- Checkpoint saving and resuming
+- Data augmentation with random rotations, flips, perspective and color jittering
+- Weighted random sampling to handle class imbalance
+- Comprehensive logging and metrics tracking
 
-### Training
+## Model Outputs
 
-To train the Vision Transformer model on the provided dataset, follow these steps:
+The training script saves several files:
 
-1. Clone this repository.
-    ```
-    git clone https://github.com/tikendraw/pneumonia-detection-with-vision-transformer.git
-    ```
-2. Install the requirements 
-    ```
-    pip install requirements.txt
-    ```
-3. Prepare the dataset and configure the  `config.py` then execute the config.py.
+- `{model_path}`: Vision Transformer model weights
+- `{model_path}.xgb`: Trained XGBoost classifier
+- `{model_path}.ckpt`: Training checkpoint for resuming
+- `wandb_run_id.txt`: Weights & Biases run ID for experiment tracking
+- `training.log`: Detailed training logs
 
-    > folder structure must be
-    ```     
-    ├── train
-    │   ├── normal
-    │   │   ├── ...jpeg
-    │   │   └── ...jpeg
-    │   └── pneumonia
-    │       ├── ...jpeg
-    │       └── ...jpeg
-    │       
-    └── test
-        ├── normal
-        │   ├── ...jpeg
-        │   └── ...jpeg
-        └── pneumonia
-            ├── ...jpeg
-            └── ...jpeg
-    ```
-    ```
-    python3 config.py
-    ```
-4. Run the training script using the `train.py` file.
-    ```
-    python3 train.py path/to/train/folder/
-    ```
+## Configuration
 
-    if you have a test set and as folder structure as above pass
-    ```
-    python3 train.py path/to/train/folder/ --test --test-directory path/to/test/folder/ 
-    ```
+Model and training parameters can be configured in `config.toml`. Key parameters include:
 
-### Prediction/train/
-
-After training the model, you can make predictions on new chest X-ray images using the following steps:
-
-1. Place the test images in a directory.
-    >This does not have to follow folder structure
-
-2. Run the prediction script using the `predict.py` file.
-    ```
-    python3 predict.py path/to/test/folder/ 
-    ```
-
-### Running the Streamlit App
-
-To deploy a Streamlit web app for interactive pneumonia detection, follow these steps:
-
-1. Configure the Streamlit app in the `app.py` file.
-2. Run the app using the `streamlit run app.py` command.
-
-## Contributing
-
-Contributions to this project are welcome. If you have any suggestions, bug reports, or feature requests, please open an issue or submit a pull request.
-
-## Acknowledgements
-
-- Thanks to [Aladdin persson](https://github.com/aladdinpersson) for his tutorial on [How to deal with Imbalanced Datasets in PyTorch - Weighted Random Sampler Tutorial](https://www.youtube.com/watch?v=4JFVhJyTZ44)
-- The dataset used in this project is from [Chest X-Ray Images (Pneumonia)](https://www.kaggle.com/datasets/lasaljaywardena/pneumonia-chest-x-ray-dataset) .
-
+- `image_size`: Input image dimensions
+- `batch_size`: Training batch size
+- `learning_rate`: Optimizer learning rate
+- `num_epochs`: Number of training epochs
+- `seed`: Random seed for reproducibility
+- `model_path`: Path to save model weights
