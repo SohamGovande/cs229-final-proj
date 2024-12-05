@@ -15,7 +15,7 @@ class TransformerBlock(nn.Module):
     def forward(self, x):
         n_x = self.norm1(x)
         attn_output, self.attn_weights = self.attention(n_x, n_x, n_x)
-        x += attn_output
+        x = x + attn_output
         return x + self.mlp(self.norm2(x))
 
 class TransformerBlockStack(nn.Module):

@@ -7,3 +7,7 @@ training.log
 *.egg
 *.egg-info
 __pycache__
+wandb_run_id.txt
+wandb/
+data/
+models/

@@ -21,6 +21,11 @@ Launch the training script using:
 python3 -m vit.scripts.train [image_directory] [options]
 ```
 
+On RunPod, use the following command:
+```bash
+python3 -m vit.scripts.train data/chest_xray/train-bv-aug --test --test-directory data/chest_xray/test-bv-aug
+```
+
 ### Arguments
 
 - `image_directory`: Path to directory containing training images. Should be organized in subdirectories by class.
