@@ -10,13 +10,12 @@ import torch.optim as optim
 import xgboost as xgb
 from funcyou.utils import DotDict
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 
-from data import load_image_data
-from model import VisionTransformerResNet  # Ensure this is the VisionTransformerResNet class from model.py
-from utils import set_seed
+from ..data import load_image_data
+from ..model import ViT
+from ..utils import set_seed
 
 import wandb
 
@@ -219,7 +218,7 @@ def main():
     )
     
     # Initialize model and move to device before creating optimizer
-    model = VisionTransformerResNet(config)
+    model = ViT(config)
     model.to(config.device)
     print("Number of parameters: ", count_parameters(model))
     loss_function = nn.BCELoss()

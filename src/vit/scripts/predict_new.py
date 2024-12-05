@@ -21,7 +21,7 @@ from tqdm import tqdm
 
 from data import load_image_data
 from model import DenseNet121Baseline, VisionTransformerResNet  
-from utils import set_seed, extract_features
+from src.vit.utils import set_seed, extract_features
 
 # Configure logger to print to terminal
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')

@@ -4,3 +4,6 @@ output.csv
 output*.csv
 prediction.log
 training.log
+*.egg
+*.egg-info
+__pycache__
