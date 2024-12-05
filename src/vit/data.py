@@ -7,7 +7,7 @@ from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from torchvision.datasets.folder import default_loader
 
-from src.vit.utils import calculate_class_weights_from_directory
+from .utils import calculate_class_weights_from_directory
 
 
 def load_image_data(data_dir:Path, image_size, batch_size=1, num_workers=2, transform=None, use_sampler=False, shuffle=False):
